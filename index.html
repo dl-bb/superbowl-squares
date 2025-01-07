@@ -114,6 +114,9 @@
             min-height: 25px;
             line-height: 1.2;
             hyphens: auto;
+            overflow: hidden;
+            max-width: 100%;
+            box-sizing: border-box;
         }
 
         .grid-item:hover {
@@ -351,6 +354,81 @@
                 font-size: 1.1em;
             }
         }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal {
+            background: linear-gradient(180deg, #2b2b2b 0%, #222222 100%);
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            position: relative;
+            box-shadow: 0 0 20px rgba(255, 0, 51, 0.3);
+            transform: scale(0);
+            transition: transform 0.3s ease;
+        }
+
+        .modal input {
+            padding: 10px;
+            margin: 10px 0;
+            border: none;
+            border-radius: 5px;
+            width: 200px;
+            font-size: 16px;
+            background: #333;
+            color: white;
+        }
+
+        .modal button {
+            padding: 8px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            background: linear-gradient(135deg, #cc0000 0%, #ff0033 100%);
+            color: white;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .modal button:hover {
+            transform: scale(1.05);
+        }
+
+        @keyframes burnOut {
+            0% {
+                transform: scale(1);
+                filter: brightness(1);
+            }
+            50% {
+                transform: scale(1.2);
+                filter: brightness(2);
+            }
+            100% {
+                transform: scale(0);
+                filter: brightness(3);
+            }
+        }
+
+        .flame {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: orange;
+            border-radius: 50%;
+            filter: blur(2px);
+            opacity: 0;
+        }
     </style>
     <!-- Add Supabase JS library -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -432,26 +510,8 @@
                         cell.setAttribute('data-row', i-1);
                         cell.setAttribute('data-col', j-1);
                         cell.addEventListener('click', async () => {
-                            const name = prompt('Enter your name:');
-                            if (name) {
-                                try {
-                                    console.log('Attempting to save:', { row: i-1, col: j-1, name });
-                                    const { data, error } = await supabaseClient
-                                        .from('squares')
-                                        .insert([
-                                            { row: i-1, col: j-1, name: name }
-                                        ]);
-                                    
-                                    if (error) {
-                                        console.error('Supabase Error:', error);
-                                    } else {
-                                        console.log('Save successful:', data);
-                                        cell.textContent = name;
-                                        cell.style.background = 'linear-gradient(180deg, #2894D9 0%, #1E7AB5 100%)';
-                                    }
-                                } catch (error) {
-                                    console.error('Try-Catch Error:', error);
-                                }
+                            if (!cell.textContent || cell.textContent.trim() === '') {
+                                showModal(cell);
                             }
                         });
                     }
@@ -521,6 +581,14 @@
                     }
                 });
             }
+
+            // Add enter key listener to input
+            document.getElementById('nameInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault(); // Prevent default form submission
+                    submitName();
+                }
+            });
         });
 
         // Function to load all entries
@@ -548,6 +616,80 @@
             } catch (error) {
                 console.error('Load Try-Catch Error:', error);
             }
+        }
+
+        let selectedCell = null;
+
+        function showModal(cell) {
+            selectedCell = cell;
+            const overlay = document.querySelector('.modal-overlay');
+            const modal = document.querySelector('.modal');
+            overlay.style.display = 'flex';
+            setTimeout(() => modal.style.transform = 'scale(1)', 10);
+            document.getElementById('nameInput').focus();
+        }
+
+        function createFlames() {
+            const modal = document.querySelector('.modal');
+            const rect = modal.getBoundingClientRect();
+            const flames = 20;
+            
+            for (let i = 0; i < flames; i++) {
+                const flame = document.createElement('div');
+                flame.className = 'flame';
+                flame.style.left = rect.left + Math.random() * rect.width + 'px';
+                flame.style.top = rect.top + Math.random() * rect.height + 'px';
+                document.body.appendChild(flame);
+                
+                // Animate each flame
+                flame.style.opacity = '1';
+                flame.style.animation = `burnOut ${0.5 + Math.random() * 0.5}s forwards`;
+                
+                // Remove flame after animation
+                setTimeout(() => flame.remove(), 1000);
+            }
+        }
+
+        async function submitName() {
+            const name = document.getElementById('nameInput').value.trim();
+            if (name && selectedCell) {
+                const row = parseInt(selectedCell.getAttribute('data-row'));
+                const col = parseInt(selectedCell.getAttribute('data-col'));
+                
+                try {
+                    const { data, error } = await supabaseClient
+                        .from('squares')
+                        .insert([
+                            { row: row, col: col, name: name }
+                        ]);
+                    
+                    if (error) {
+                        console.error('Supabase Error:', error);
+                    } else {
+                        selectedCell.textContent = name;
+                        selectedCell.style.background = 'linear-gradient(180deg, #2894D9 0%, #1E7AB5 100%)';
+                        closeModalWithEffect();
+                    }
+                } catch (error) {
+                    console.error('Try-Catch Error:', error);
+                }
+            }
+        }
+
+        function closeModalWithEffect() {
+            const modal = document.querySelector('.modal');
+            createFlames();
+            modal.style.animation = 'burnOut 0.5s forwards';
+            setTimeout(() => {
+                document.querySelector('.modal-overlay').style.display = 'none';
+                modal.style.animation = '';
+                modal.style.transform = 'scale(0)';
+                document.getElementById('nameInput').value = '';
+            }, 500);
+        }
+
+        function closeModal() {
+            closeModalWithEffect();
         }
     </script>
 </head>
@@ -589,14 +731,11 @@
                     border-radius: 8px;
                     max-width: 605px;
                     color: #ffffff;">
-            <h3 style="color: #ff0033; margin-bottom: 15px; font-size: 1.4em;">How to Win</h3>
+            <h3 style="color: #ff0033; margin-bottom: 15px; margin-top: 0px;font-size: 1.4em;">How to Win</h3>
             <p style="line-height: 1.6; margin-bottom: 15px; font-size: 1.1em; text-align: left;">
                 Winners are determined by matching the last digit of each team's score at the end of each quarter.
             </p>
-            <p style="line-height: 1.6; margin-bottom: 15px; font-size: 1.1em; text-align: left;">
-                For example: If the score is Chiefs 17, 49ers 13, the winning square would be where 7 (Chiefs) and 3 (49ers) intersect.
-            </p>
-            <p style="line-height: 1.6; color: #ff0033; font-weight: bold; font-size: 1.1em; text-align: left;">
+                        <p style="line-height: 1.6; color: #ff0033; font-weight: bold; font-size: 1.1em; text-align: left;">
                 Game on.
             </p>
         </div>
@@ -610,6 +749,17 @@
                            padding: 5px 10px;">
                 Reset Board
             </button>
+        </div>
+    </div>
+
+    <div class="modal-overlay">
+        <div class="modal">
+            <h3 style="color: white; margin-bottom: 20px;">Enter Your Name</h3>
+            <input type="text" id="nameInput" placeholder="Your name">
+            <div>
+                <button onclick="submitName()">Submit</button>
+                <button onclick="closeModal()">Cancel</button>
+            </div>
         </div>
     </div>
 
