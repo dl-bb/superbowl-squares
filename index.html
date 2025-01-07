@@ -359,26 +359,35 @@
         // Function to save entry
         async function saveSquare(row, col, name) {
             try {
+                console.log('Attempting to save:', { row, col, name });
                 const { data, error } = await supabase
                     .from('squares')
                     .insert([
                         { row: row, col: col, name: name }
                     ])
-                if (error) throw error
+                if (error) {
+                    console.error('Supabase Error:', error);
+                } else {
+                    console.log('Save successful:', data);
+                }
             } catch (error) {
-                console.error('Error:', error)
+                console.error('Try-Catch Error:', error);
             }
         }
 
         // Function to load all entries
         async function loadSquares() {
             try {
+                console.log('Attempting to load squares...');
                 const { data, error } = await supabase
                     .from('squares')
                     .select('*')
                 
-                if (error) throw error
-
+                if (error) {
+                    console.error('Load Error:', error);
+                } else {
+                    console.log('Loaded squares:', data);
+                }
                 // Fill the grid with saved data
                 data.forEach(square => {
                     const cell = document.querySelector(
@@ -390,7 +399,7 @@
                     }
                 })
             } catch (error) {
-                console.error('Error:', error)
+                console.error('Load Try-Catch Error:', error);
             }
         }
 
