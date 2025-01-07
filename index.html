@@ -377,6 +377,24 @@
             box-shadow: 0 0 20px rgba(255, 0, 51, 0.3);
             transform: scale(0);
             transition: transform 0.3s ease;
+            margin: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .modal-overlay {
+                align-items: flex-start;
+                padding-top: 20vh; /* Position modal higher on mobile */
+            }
+            
+            .modal {
+                margin-bottom: 50vh; /* Ensure space for keyboard */
+            }
+            
+            /* When keyboard is visible */
+            .modal-overlay.keyboard-open {
+                align-items: flex-start;
+                padding-top: 5vh;
+            }
         }
 
         .modal input {
@@ -632,18 +650,36 @@
         function createFlames() {
             const modal = document.querySelector('.modal');
             const rect = modal.getBoundingClientRect();
-            const flames = 20;
+            const flameCount = 30; // Increased number of flames
             
-            for (let i = 0; i < flames; i++) {
+            for (let i = 0; i < flameCount; i++) {
                 const flame = document.createElement('div');
                 flame.className = 'flame';
-                flame.style.left = rect.left + Math.random() * rect.width + 'px';
-                flame.style.top = rect.top + Math.random() * rect.height + 'px';
+                
+                // Randomize flame positions around the modal
+                const angle = (Math.random() * Math.PI * 2);
+                const distance = Math.random() * 50 + 20;
+                const x = rect.left + rect.width/2 + Math.cos(angle) * distance;
+                const y = rect.top + rect.height/2 + Math.sin(angle) * distance;
+                
+                flame.style.left = `${x}px`;
+                flame.style.top = `${y}px`;
+                
+                // Randomize flame colors
+                const hue = 20 + Math.random() * 20; // Orange-red range
+                flame.style.background = `linear-gradient(to bottom, 
+                    hsl(${hue}, 100%, 65%),
+                    hsl(${hue - 10}, 100%, 50%))`;
+                
+                // Randomize flame sizes
+                const size = 10 + Math.random() * 20;
+                flame.style.width = `${size}px`;
+                flame.style.height = `${size}px`;
+                
                 document.body.appendChild(flame);
                 
-                // Animate each flame
-                flame.style.opacity = '1';
-                flame.style.animation = `burnOut ${0.5 + Math.random() * 0.5}s forwards`;
+                // Animate with random duration and delay
+                flame.style.animation = `burnOut ${0.6 + Math.random() * 0.4}s forwards`;
                 
                 // Remove flame after animation
                 setTimeout(() => flame.remove(), 1000);
