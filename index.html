@@ -356,16 +356,60 @@
         const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFtb2NuZHZyeW5peHJvcGJ2Y2FmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzYyMjc3NjcsImV4cCI6MjA1MTgwMzc2N30.glaGn6VZRWXJ2wgg04Vwh86L7JglImrKL_VGq_d1KqY'
         const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey)
 
-        document.addEventListener('DOMContentLoaded', () => {
+        // Add this function to get or create number configuration
+        async function getOrCreateNumbers() {
+            try {
+                // Try to get existing numbers
+                let { data: existingConfig } = await supabaseClient
+                    .from('number_config')
+                    .select('*')
+                    .order('created_at', { ascending: false })
+                    .limit(1);
+
+                if (existingConfig && existingConfig.length > 0) {
+                    console.log('Using existing number configuration');
+                    return {
+                        team1Numbers: existingConfig[0].team1_numbers,
+                        team2Numbers: existingConfig[0].team2_numbers
+                    };
+                } else {
+                    // Create new random numbers
+                    console.log('Creating new number configuration');
+                    const numbers = Array.from({length: 10}, (_, i) => i);
+                    const team1Numbers = [...numbers].sort(() => Math.random() - 0.5);
+                    const team2Numbers = [...numbers].sort(() => Math.random() - 0.5);
+
+                    // Save to database
+                    const { error } = await supabaseClient
+                        .from('number_config')
+                        .insert([{
+                            team1_numbers: team1Numbers,
+                            team2_numbers: team2Numbers
+                        }]);
+
+                    if (error) throw error;
+
+                    return { team1Numbers, team2Numbers };
+                }
+            } catch (error) {
+                console.error('Error with number configuration:', error);
+                // Fallback to random numbers if there's an error
+                const numbers = Array.from({length: 10}, (_, i) => i);
+                return {
+                    team1Numbers: [...numbers].sort(() => Math.random() - 0.5),
+                    team2Numbers: [...numbers].sort(() => Math.random() - 0.5)
+                };
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
             createSparkles();
             const grid = document.getElementById('grid');
-            const numbers = Array.from({length: 10}, (_, i) => i);
             
-            // Shuffle numbers for both teams
-            const team1Numbers = [...numbers].sort(() => Math.random() - 0.5);
-            const team2Numbers = [...numbers].sort(() => Math.random() - 0.5);
+            // Get the number configuration
+            const { team1Numbers, team2Numbers } = await getOrCreateNumbers();
 
-            // Create the grid
+            // Create the grid (using the retrieved numbers)
             for (let i = 0; i < 11; i++) {
                 for (let j = 0; j < 11; j++) {
                     const cell = document.createElement('div');
@@ -412,6 +456,95 @@
 
             // Load existing squares
             loadSquares();
+
+            // Add real-time subscription with more detailed logging
+            try {
+                console.log('Setting up real-time subscription...');
+                
+                const channel = supabaseClient
+                    .channel('public:squares')
+                    .on('postgres_changes', 
+                        {
+                            event: '*',
+                            schema: 'public',
+                            table: 'squares'
+                        }, 
+                        (payload) => {
+                            console.log('Received real-time update:', payload);
+                            
+                            if (payload.eventType === 'INSERT') {
+                                console.log('Processing INSERT:', payload.new);
+                                const { row, col, name } = payload.new;
+                                const cell = document.querySelector(
+                                    `[data-row="${row}"][data-col="${col}"]`
+                                );
+                                if (cell) {
+                                    console.log('Updating cell:', row, col, name);
+                                    cell.textContent = name;
+                                    cell.style.background = 'linear-gradient(180deg, #2894D9 0%, #1E7AB5 100%)';
+                                } else {
+                                    console.log('Cell not found for:', row, col);
+                                }
+                            } else if (payload.eventType === 'DELETE') {
+                                console.log('Processing DELETE');
+                                const cells = document.querySelectorAll('.grid-item');
+                                cells.forEach(cell => {
+                                    if (!cell.classList.contains('header') && cell.textContent) {
+                                        cell.textContent = '';
+                                        cell.style.background = '';
+                                        cell.style.backgroundColor = '#f0f0f0';
+                                    }
+                                });
+                            }
+                        }
+                    );
+
+                console.log('Subscribing to channel...');
+                await channel.subscribe((status) => {
+                    console.log('Subscription status:', status);
+                });
+                
+                console.log('Subscription setup complete');
+                
+            } catch (error) {
+                console.error('Error setting up real-time subscription:', error);
+            }
+
+            // Add real-time subscription
+            const subscription = supabaseClient
+                .channel('squares_channel')
+                .on('postgres_changes', 
+                    {
+                        event: '*',
+                        schema: 'public',
+                        table: 'squares'
+                    }, 
+                    payload => {
+                        console.log('Change received:', payload);
+                        if (payload.eventType === 'INSERT') {
+                            // Handle new square selection
+                            const { row, col, name } = payload.new;
+                            const cell = document.querySelector(
+                                `[data-row="${row}"][data-col="${col}"]`
+                            );
+                            if (cell) {
+                                cell.textContent = name;
+                                cell.style.background = 'linear-gradient(180deg, #2894D9 0%, #1E7AB5 100%)';
+                            }
+                        } else if (payload.eventType === 'DELETE') {
+                            // Handle board clear
+                            const cells = document.querySelectorAll('.grid-item');
+                            cells.forEach(cell => {
+                                if (!cell.classList.contains('header') && cell.textContent) {
+                                    cell.textContent = '';
+                                    cell.style.background = '';
+                                    cell.style.backgroundColor = '#f0f0f0';
+                                }
+                            });
+                        }
+                    }
+                )
+                .subscribe();
         });
 
         // Function to load all entries
@@ -521,20 +654,22 @@
             if (confirm('Are you sure you want to clear all entries?')) {
                 try {
                     console.log('Attempting to clear board...');
-                    const { error } = await supabaseClient
+                    const { data, error } = await supabaseClient
                         .from('squares')
                         .delete()
-                        .neq('id', '0'); // Deletes all rows
+                        .gte('row', 0);
 
                     if (error) {
                         console.error('Clear Error:', error);
                     } else {
                         console.log('Board cleared successfully');
-                        // Clear the visual display
-                        document.querySelectorAll('.grid-item:not(.header)').forEach(cell => {
-                            if (cell.textContent && cell.textContent !== '') {
+                        // Clear the visual display and restore original background
+                        const cells = document.querySelectorAll('.grid-item');
+                        cells.forEach(cell => {
+                            if (!cell.classList.contains('header') && cell.textContent) {
                                 cell.textContent = '';
-                                cell.style.background = 'white';
+                                cell.style.background = ''; // Remove inline background
+                                cell.style.backgroundColor = '#f0f0f0'; // Restore original color
                             }
                         });
                     }
