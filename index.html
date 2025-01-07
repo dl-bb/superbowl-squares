@@ -454,97 +454,68 @@
                 }
             }
 
-            // Load existing squares
-            loadSquares();
-
-            // Add real-time subscription with more detailed logging
-            try {
-                console.log('Setting up real-time subscription...');
-                
-                const channel = supabaseClient
-                    .channel('public:squares')
-                    .on('postgres_changes', 
-                        {
-                            event: '*',
-                            schema: 'public',
-                            table: 'squares'
-                        }, 
-                        (payload) => {
-                            console.log('Received real-time update:', payload);
-                            
-                            if (payload.eventType === 'INSERT') {
-                                console.log('Processing INSERT:', payload.new);
+            // Set up real-time subscription
+            const channel = supabaseClient
+                .channel('any')
+                .on(
+                    'postgres_changes',
+                    {
+                        event: '*',
+                        schema: 'public',
+                        table: 'squares',
+                    },
+                    (payload) => {
+                        console.log('Change received:', payload);
+                        
+                        // Handle different types of changes
+                        switch (payload.eventType) {
+                            case 'INSERT':
                                 const { row, col, name } = payload.new;
                                 const cell = document.querySelector(
                                     `[data-row="${row}"][data-col="${col}"]`
                                 );
                                 if (cell) {
-                                    console.log('Updating cell:', row, col, name);
                                     cell.textContent = name;
                                     cell.style.background = 'linear-gradient(180deg, #2894D9 0%, #1E7AB5 100%)';
-                                } else {
-                                    console.log('Cell not found for:', row, col);
                                 }
-                            } else if (payload.eventType === 'DELETE') {
-                                console.log('Processing DELETE');
-                                const cells = document.querySelectorAll('.grid-item');
-                                cells.forEach(cell => {
-                                    if (!cell.classList.contains('header') && cell.textContent) {
-                                        cell.textContent = '';
-                                        cell.style.background = '';
-                                        cell.style.backgroundColor = '#f0f0f0';
-                                    }
-                                });
-                            }
-                        }
-                    );
-
-                console.log('Subscribing to channel...');
-                await channel.subscribe((status) => {
-                    console.log('Subscription status:', status);
-                });
-                
-                console.log('Subscription setup complete');
-                
-            } catch (error) {
-                console.error('Error setting up real-time subscription:', error);
-            }
-
-            // Add real-time subscription
-            const subscription = supabaseClient
-                .channel('squares_channel')
-                .on('postgres_changes', 
-                    {
-                        event: '*',
-                        schema: 'public',
-                        table: 'squares'
-                    }, 
-                    payload => {
-                        console.log('Change received:', payload);
-                        if (payload.eventType === 'INSERT') {
-                            // Handle new square selection
-                            const { row, col, name } = payload.new;
-                            const cell = document.querySelector(
-                                `[data-row="${row}"][data-col="${col}"]`
-                            );
-                            if (cell) {
-                                cell.textContent = name;
-                                cell.style.background = 'linear-gradient(180deg, #2894D9 0%, #1E7AB5 100%)';
-                            }
-                        } else if (payload.eventType === 'DELETE') {
-                            // Handle board clear
-                            const cells = document.querySelectorAll('.grid-item');
-                            cells.forEach(cell => {
-                                if (!cell.classList.contains('header') && cell.textContent) {
-                                    cell.textContent = '';
-                                    cell.style.background = '';
-                                    cell.style.backgroundColor = '#f0f0f0';
+                                break;
+                                
+                            case 'DELETE':
+                                // If it's a board clear
+                                if (!payload.old.row && !payload.old.col) {
+                                    const cells = document.querySelectorAll('.grid-item');
+                                    cells.forEach(cell => {
+                                        if (!cell.classList.contains('header') && cell.textContent) {
+                                            cell.textContent = '';
+                                            cell.style.background = '';
+                                            cell.style.backgroundColor = '#f0f0f0';
+                                        }
+                                    });
                                 }
-                            });
+                                break;
                         }
                     }
                 )
-                .subscribe();
+                .subscribe((status) => {
+                    console.log('Subscription status:', status);
+                });
+
+            // Initial load of existing squares
+            const { data: existingSquares } = await supabaseClient
+                .from('squares')
+                .select('*');
+
+            if (existingSquares) {
+                existingSquares.forEach(square => {
+                    const cell = document.querySelector(
+                        `[data-row="${square.row}"][data-col="${square.col}"]`
+                    );
+                    if (cell) {
+                        cell.textContent = square.name;
+                        cell.style.background = 'linear-gradient(180deg, #2894D9 0%, #1E7AB5 100%)';
+                    }
+                });
+            }
         });
 
         // Function to load all entries
