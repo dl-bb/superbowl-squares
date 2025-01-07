@@ -491,6 +491,17 @@
                 Prizes awarded at: End of 1st Quarter, Halftime, End of 3rd Quarter, and Final Score
             </p>
         </div>
+        <div style="text-align: center; margin-top: 40px; opacity: 0.3;">
+            <button onclick="clearBoard()" 
+                    style="background: none; 
+                           border: none; 
+                           color: #666; 
+                           font-size: 12px; 
+                           cursor: pointer; 
+                           padding: 5px 10px;">
+                Reset Board
+            </button>
+        </div>
     </div>
 
     <script>
@@ -503,6 +514,33 @@
                 sparkle.style.top = Math.random() * 100 + '%';
                 sparkle.style.animation = `fadeOut ${Math.random() * 2 + 1}s linear infinite`;
                 overlay.appendChild(sparkle);
+            }
+        }
+
+        async function clearBoard() {
+            if (confirm('Are you sure you want to clear all entries?')) {
+                try {
+                    console.log('Attempting to clear board...');
+                    const { error } = await supabaseClient
+                        .from('squares')
+                        .delete()
+                        .neq('id', '0'); // Deletes all rows
+
+                    if (error) {
+                        console.error('Clear Error:', error);
+                    } else {
+                        console.log('Board cleared successfully');
+                        // Clear the visual display
+                        document.querySelectorAll('.grid-item:not(.header)').forEach(cell => {
+                            if (cell.textContent && cell.textContent !== '') {
+                                cell.textContent = '';
+                                cell.style.background = 'white';
+                            }
+                        });
+                    }
+                } catch (error) {
+                    console.error('Clear Board Error:', error);
+                }
             }
         }
     </script>
