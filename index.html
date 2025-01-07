@@ -347,6 +347,69 @@
             }
         }
     </style>
+    <!-- Add Supabase JS library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <script>
+        // Initialize Supabase client
+        const supabaseUrl = 'https://amocndvrynixropbvcaf.supabase.co'
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFtb2NuZHZyeW5peHJvcGJ2Y2FmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzYyMjc3NjcsImV4cCI6MjA1MTgwMzc2N30.glaGn6VZRWXJ2wgg04Vwh86L7JglImrKL_VGq_d1KqY'
+        const supabase = supabase.createClient(supabaseUrl, supabaseKey)
+
+        // Function to save entry
+        async function saveSquare(row, col, name) {
+            try {
+                const { data, error } = await supabase
+                    .from('squares')
+                    .insert([
+                        { row: row, col: col, name: name }
+                    ])
+                if (error) throw error
+            } catch (error) {
+                console.error('Error:', error)
+            }
+        }
+
+        // Function to load all entries
+        async function loadSquares() {
+            try {
+                const { data, error } = await supabase
+                    .from('squares')
+                    .select('*')
+                
+                if (error) throw error
+
+                // Fill the grid with saved data
+                data.forEach(square => {
+                    const cell = document.querySelector(
+                        `[data-row="${square.row}"][data-col="${square.col}"]`
+                    )
+                    if (cell) {
+                        cell.textContent = square.name
+                        cell.style.background = 'linear-gradient(180deg, #2894D9 0%, #1E7AB5 100%)'
+                    }
+                })
+            } catch (error) {
+                console.error('Error:', error)
+            }
+        }
+
+        // Modify your click handler
+        cell.addEventListener('click', async () => {
+            const name = prompt('Enter your name:')
+            if (name) {
+                cell.textContent = name
+                cell.style.background = 'linear-gradient(180deg, #2894D9 0%, #1E7AB5 100%)'
+                await saveSquare(i-1, j-1, name)
+            }
+        })
+
+        // Load saved squares when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            loadSquares()
+            // ... rest of your existing DOMContentLoaded code ...
+        })
+    </script>
 </head>
 <body>
     <div class="intro-overlay">
@@ -442,13 +505,12 @@
                         // Square cells
                         cell.setAttribute('data-row', i-1);
                         cell.setAttribute('data-col', j-1);
-                        cell.addEventListener('click', () => {
+                        cell.addEventListener('click', async () => {
                             const name = prompt('Enter your name:');
                             if (name) {
                                 cell.textContent = name;
-                                // Add Coors Light blue background
                                 cell.style.background = 'linear-gradient(180deg, #2894D9 0%, #1E7AB5 100%)';
-                                cell.style.color = 'white';
+                                await saveSquare(i-1, j-1, name);
                             }
                         });
                     }
